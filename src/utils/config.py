@@ -16,6 +16,10 @@ import yaml
 
 DEFAULT_VIDEO_EXTENSIONS: tuple[str, ...] = (".avi", ".mp4", ".mkv", ".mov")
 SAMPLING_STRATEGIES: frozenset[str] = frozenset({"uniform", "center", "random"})
+SUPPORTED_BACKBONES: frozenset[str] = frozenset({"resnet18", "resnet34", "resnet50"})
+SUPPORTED_ARCHITECTURES: frozenset[str] = frozenset({"cnn_lstm"})
+SUPPORTED_DEVICES: frozenset[str] = frozenset({"auto", "cpu", "cuda"})
+SUPPORTED_CLASS_WEIGHTING: frozenset[str] = frozenset({"none", "balanced"})
 RATIO_TOLERANCE = 1e-6
 
 
@@ -167,6 +171,147 @@ class DatasetConfig:
         return cls.from_mapping(load_yaml(path))
 
 
+@dataclass(frozen=True)
+class BackboneConfig:
+    """Convolutional feature extractor applied to every frame."""
+
+    name: str = "resnet18"
+    pretrained: bool = True
+    freeze: bool = True
+
+    def __post_init__(self) -> None:
+        if self.name not in SUPPORTED_BACKBONES:
+            allowed = ", ".join(sorted(SUPPORTED_BACKBONES))
+            raise ConfigError(f"backbone.name must be one of [{allowed}], got {self.name!r}")
+
+
+@dataclass(frozen=True)
+class TemporalConfig:
+    """Recurrent head that models how frame features evolve over time."""
+
+    hidden_size: int = 256
+    num_layers: int = 1
+    bidirectional: bool = False
+    dropout: float = 0.3
+
+    def __post_init__(self) -> None:
+        if self.hidden_size < 1:
+            raise ConfigError(f"temporal.hidden_size must be >= 1, got {self.hidden_size}")
+        if self.num_layers < 1:
+            raise ConfigError(f"temporal.num_layers must be >= 1, got {self.num_layers}")
+        _check_dropout(self.dropout, "temporal.dropout")
+
+
+@dataclass(frozen=True)
+class ModelConfig:
+    """Architecture of the action recognition model."""
+
+    architecture: str = "cnn_lstm"
+    backbone: BackboneConfig = field(default_factory=BackboneConfig)
+    temporal: TemporalConfig = field(default_factory=TemporalConfig)
+    classifier_dropout: float = 0.5
+
+    def __post_init__(self) -> None:
+        if self.architecture not in SUPPORTED_ARCHITECTURES:
+            allowed = ", ".join(sorted(SUPPORTED_ARCHITECTURES))
+            raise ConfigError(f"architecture must be one of [{allowed}], got {self.architecture!r}")
+        _check_dropout(self.classifier_dropout, "classifier.dropout")
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> ModelConfig:
+        classifier = _as_mapping(payload.get("classifier", {}), "classifier")
+        unexpected = set(classifier) - {"dropout"}
+        if unexpected:
+            raise ConfigError(f"classifier has unexpected keys: {sorted(unexpected)}")
+
+        return cls(
+            architecture=str(payload.get("architecture", "cnn_lstm")),
+            backbone=BackboneConfig(**_as_mapping(payload.get("backbone", {}), "backbone")),
+            temporal=TemporalConfig(**_as_mapping(payload.get("temporal", {}), "temporal")),
+            classifier_dropout=float(classifier.get("dropout", 0.5)),
+        )
+
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> ModelConfig:
+        return cls.from_mapping(load_yaml(path))
+
+
+@dataclass(frozen=True)
+class EarlyStoppingConfig:
+    """Stops training once the monitored validation metric stops improving."""
+
+    monitor: str = "val_macro_f1"
+    patience: int = 5
+
+    def __post_init__(self) -> None:
+        if not self.monitor:
+            raise ConfigError("early_stopping.monitor must not be empty")
+        if self.patience < 1:
+            raise ConfigError(f"early_stopping.patience must be >= 1, got {self.patience}")
+
+
+@dataclass(frozen=True)
+class TrainingConfig:
+    """Optimisation settings and output locations for a training run."""
+
+    seed: int = 42
+    device: str = "auto"
+    epochs: int = 30
+    batch_size: int = 16
+    num_workers: int = 0
+    learning_rate: float = 1e-3
+    weight_decay: float = 1e-4
+    gradient_clip_norm: float | None = 5.0
+    class_weighting: str = "balanced"
+    early_stopping: EarlyStoppingConfig = field(default_factory=EarlyStoppingConfig)
+    feature_cache_root: Path = Path("data/processed/features")
+    checkpoint_dir: Path = Path("models/checkpoints")
+    log_dir: Path = Path("outputs/logs")
+
+    def __post_init__(self) -> None:
+        if self.seed < 0:
+            raise ConfigError(f"seed must be non-negative, got {self.seed}")
+        if self.device not in SUPPORTED_DEVICES:
+            allowed = ", ".join(sorted(SUPPORTED_DEVICES))
+            raise ConfigError(f"device must be one of [{allowed}], got {self.device!r}")
+        if self.epochs < 1:
+            raise ConfigError(f"epochs must be >= 1, got {self.epochs}")
+        if self.batch_size < 1:
+            raise ConfigError(f"batch_size must be >= 1, got {self.batch_size}")
+        if self.num_workers < 0:
+            raise ConfigError(f"num_workers must be >= 0, got {self.num_workers}")
+        if self.learning_rate <= 0:
+            raise ConfigError(f"learning_rate must be > 0, got {self.learning_rate}")
+        if self.weight_decay < 0:
+            raise ConfigError(f"weight_decay must be >= 0, got {self.weight_decay}")
+        if self.gradient_clip_norm is not None and self.gradient_clip_norm <= 0:
+            raise ConfigError(
+                f"gradient_clip_norm must be > 0 or null, got {self.gradient_clip_norm}"
+            )
+        if self.class_weighting not in SUPPORTED_CLASS_WEIGHTING:
+            allowed = ", ".join(sorted(SUPPORTED_CLASS_WEIGHTING))
+            raise ConfigError(
+                f"class_weighting must be one of [{allowed}], got {self.class_weighting!r}"
+            )
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> TrainingConfig:
+        settings = dict(payload)
+        early_stopping = EarlyStoppingConfig(
+            **_as_mapping(settings.pop("early_stopping", {}), "early_stopping")
+        )
+        paths = {
+            key: Path(settings.pop(key))
+            for key in ("feature_cache_root", "checkpoint_dir", "log_dir")
+            if key in settings
+        }
+        return cls(early_stopping=early_stopping, **settings, **paths)
+
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> TrainingConfig:
+        return cls.from_mapping(load_yaml(path))
+
+
 def load_yaml(path: str | Path) -> dict[str, Any]:
     """Read a YAML file into a dictionary."""
     config_path = Path(path)
@@ -196,6 +341,11 @@ def _as_str_tuple(value: Any, field_name: str) -> tuple[str, ...]:
             raise ConfigError(f"{field_name} must contain non-empty strings, got {item!r}")
         items.append(item)
     return tuple(items)
+
+
+def _check_dropout(value: float, field_name: str) -> None:
+    if not 0.0 <= value < 1.0:
+        raise ConfigError(f"{field_name} must be in [0.0, 1.0), got {value}")
 
 
 def _duplicates(values: Sequence[str]) -> set[str]:

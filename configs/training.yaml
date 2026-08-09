@@ -1,0 +1,20 @@
+# Training loop settings.
+seed: 42
+device: auto
+epochs: 30
+batch_size: 16
+num_workers: 0
+learning_rate: 0.001
+weight_decay: 0.0001
+gradient_clip_norm: 5.0
+
+# Counters the class imbalance that is typical for abnormal behaviour classes.
+class_weighting: balanced
+
+early_stopping:
+  monitor: val_macro_f1
+  patience: 5
+
+feature_cache_root: data/processed/features
+checkpoint_dir: models/checkpoints
+log_dir: outputs/logs
