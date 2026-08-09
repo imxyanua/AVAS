@@ -251,4 +251,4 @@ Deployments must also follow applicable privacy, surveillance, data retention, a
 
 ## License
 
-No license is currently included. Do not assume permission to use, modify, or redistribute this project until a license is provided.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for the full text.
