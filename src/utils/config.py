@@ -203,12 +203,39 @@ class TemporalConfig:
 
 
 @dataclass(frozen=True)
+class AnomalyConfig:
+    """Score thresholds that separate normal, suspicious and high-risk events.
+
+    The defaults are provisional. Thresholds decide how many events an operator
+    must review, so they have to be calibrated on validation data rather than
+    accepted as given.
+    """
+
+    suspicious_threshold: float = 0.5
+    high_risk_threshold: float = 0.8
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("suspicious_threshold", self.suspicious_threshold),
+            ("high_risk_threshold", self.high_risk_threshold),
+        ):
+            if not 0.0 < value <= 1.0:
+                raise ConfigError(f"anomaly.{name} must be in (0.0, 1.0], got {value}")
+        if self.suspicious_threshold >= self.high_risk_threshold:
+            raise ConfigError(
+                "anomaly.suspicious_threshold must be lower than anomaly.high_risk_threshold, "
+                f"got {self.suspicious_threshold} and {self.high_risk_threshold}"
+            )
+
+
+@dataclass(frozen=True)
 class ModelConfig:
     """Architecture of the action recognition model."""
 
     architecture: str = "cnn_lstm"
     backbone: BackboneConfig = field(default_factory=BackboneConfig)
     temporal: TemporalConfig = field(default_factory=TemporalConfig)
+    anomaly: AnomalyConfig = field(default_factory=AnomalyConfig)
     classifier_dropout: float = 0.5
 
     def __post_init__(self) -> None:
@@ -228,12 +255,35 @@ class ModelConfig:
             architecture=str(payload.get("architecture", "cnn_lstm")),
             backbone=BackboneConfig(**_as_mapping(payload.get("backbone", {}), "backbone")),
             temporal=TemporalConfig(**_as_mapping(payload.get("temporal", {}), "temporal")),
+            anomaly=AnomalyConfig(**_as_mapping(payload.get("anomaly", {}), "anomaly")),
             classifier_dropout=float(classifier.get("dropout", 0.5)),
         )
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> ModelConfig:
         return cls.from_mapping(load_yaml(path))
+
+    def to_mapping(self) -> dict[str, Any]:
+        """Serialise back to the YAML shape, for checkpoints and run provenance."""
+        return {
+            "architecture": self.architecture,
+            "backbone": {
+                "name": self.backbone.name,
+                "pretrained": self.backbone.pretrained,
+                "freeze": self.backbone.freeze,
+            },
+            "temporal": {
+                "hidden_size": self.temporal.hidden_size,
+                "num_layers": self.temporal.num_layers,
+                "bidirectional": self.temporal.bidirectional,
+                "dropout": self.temporal.dropout,
+            },
+            "anomaly": {
+                "suspicious_threshold": self.anomaly.suspicious_threshold,
+                "high_risk_threshold": self.anomaly.high_risk_threshold,
+            },
+            "classifier": {"dropout": self.classifier_dropout},
+        }
 
 
 @dataclass(frozen=True)

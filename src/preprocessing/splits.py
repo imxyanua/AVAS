@@ -151,9 +151,16 @@ def split_videos(
 
     empty = [name for name, items in assigned.items() if not items]
     if empty:
+        recordings = {
+            label: len({sample.group_key for sample in label_samples})
+            for label, label_samples in sorted(_by_label(sample_list).items())
+        }
+        smallest = min(normalised.values())
         raise SplitError(
-            f"splits {empty} received no videos; reduce the number of splits or "
-            "add more source recordings"
+            f"splits {empty} received no videos. Splitting keeps whole source recordings "
+            f"together, so each split needs at least one. Recordings per class: {recordings}; "
+            f"requested ratios: { {name: round(ratio, 3) for name, ratio in normalised.items()} }. "
+            f"Add more recordings, or raise the smallest ratio ({smallest:.3f})."
         )
 
     return {name: sorted(items, key=lambda sample: sample.path) for name, items in assigned.items()}

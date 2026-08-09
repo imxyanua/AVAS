@@ -6,7 +6,7 @@ AVAS is an AI-assisted video analysis system for human action recognition and an
 
 The project combines computer vision, temporal deep learning, and generative AI. Deep learning produces the predictions, while generative AI is limited to explaining those predictions and preparing readable reports.
 
-> **Project status:** AVAS is under active development. Data preparation and backbone feature extraction are implemented and tested; the action recognition model, detection, tracking, report generation, and the Streamlit application are not available yet. See [Local Development](#local-development) for what can be run today.
+> **Project status:** AVAS is under active development. Data preparation, backbone feature extraction, and baseline action recognition with training and evaluation are implemented and tested. Person detection, tracking, generated reports, and the Streamlit application are not available yet. See [Local Development](#local-development) for what can be run today.
 
 ## Key Capabilities
 
@@ -223,7 +223,9 @@ models/                  Weights and training checkpoints (ignored by git)
 outputs/                 Predictions, reports and figures (ignored by git)
 src/preprocessing/       Video reading, frame sampling, transforms, datasets, splitting
 src/features/            CNN backbone feature extraction and caching
-src/utils/               Configuration loading, seeding, device selection
+src/models/              Temporal model and behaviour classification
+src/training/            Training loop and evaluation reports
+src/utils/               Configuration, seeding, device selection, metrics
 tests/                   Unit tests
 ```
 
@@ -280,6 +282,30 @@ python -m src.features.build_feature_cache --clips-per-video 1
 ```
 
 Each cached file holds a `(clip_length, feature_dim)` array for one clip, and an `index.csv` records the split, class, source recording, sampled frame indices, and file path of every entry. Existing files are reused unless `--overwrite` is passed. Caching more than one clip per video requires `sampling.strategy: random`, otherwise every clip would be identical. The command refuses to run when `backbone.freeze` is disabled, because fine-tuning would immediately invalidate the cache.
+
+## Training the Baseline
+
+```bash
+python -m src.training.train --run-name baseline
+```
+
+Training reads the feature cache, rechecks that no source recording appears in two splits, and fits the LSTM head. The loss is weighted by inverse class frequency by default, because a rare abnormal class contributes little to an unweighted loss and can be ignored while the loss still looks low. Training stops when the monitored validation metric has not improved for `early_stopping.patience` epochs, and the checkpoint always corresponds to the best monitored epoch rather than the last one.
+
+Each run writes `history.csv` with per-epoch losses and validation metrics, `summary.json` with the run configuration and best epoch, and a checkpoint recording the class list, feature dimension, and architecture needed to rebuild the model.
+
+## Evaluating a Checkpoint
+
+```bash
+python -m src.training.evaluate --checkpoint models/checkpoints/baseline.pt --split test --figure
+```
+
+The report contains per-class precision, recall, and F1, the confusion matrix, and a separate set of metrics for the normal against abnormal decision, including abnormal recall and the false alarm rate. Those are reported apart from the action metrics because confusing two abnormal behaviours with each other costs far less than missing an abnormal event. A `predictions.csv` records one row per clip so individual errors can be traced back to a recording.
+
+### Calibrating the Anomaly Thresholds
+
+The anomaly score is the total probability assigned to abnormal classes, and the thresholds in `configs/model.yaml` turn that score into a risk level. They are provisional and must be calibrated per model.
+
+Selecting a checkpoint by macro F1 makes this concrete. The epoch that first reaches peak F1 can still be poorly calibrated, so a clip can be classified correctly as abnormal while its anomaly score stays below the suspicious threshold. Compare `predictions.csv` against the reported thresholds before trusting the risk levels, and consider monitoring validation loss instead when the risk levels matter more than the ranking.
 
 ## Intended Interface
 
