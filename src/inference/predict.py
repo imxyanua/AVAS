@@ -117,7 +117,12 @@ class PersonAnalysis:
 
 @dataclass(frozen=True)
 class VideoAnalysis:
-    """Per-person conclusions for one video, plus the video's own properties."""
+    """Per-person conclusions for one video, plus the video's own properties.
+
+    ``tracks`` keeps the motion histories used for recognition so a UI can draw
+    boxes and identities. It is intentionally omitted from ``to_dict`` because
+    the JSON report is meant for events, not every per-frame box.
+    """
 
     video: Path
     fps: float
@@ -125,6 +130,7 @@ class VideoAnalysis:
     duration_seconds: float
     classes: tuple[str, ...]
     people: tuple[PersonAnalysis, ...]
+    tracks: tuple[Track, ...] = ()
 
     @property
     def abnormal_people(self) -> tuple[PersonAnalysis, ...]:
@@ -263,6 +269,7 @@ class VideoAnalyzer:
                 duration_seconds=metadata.frame_count / fps if fps > 0 else 0.0,
                 classes=tuple(self.behaviour.classes),
                 people=(),
+                tracks=(),
             )
 
         windows = self._select_windows(tracks)
@@ -276,6 +283,7 @@ class VideoAnalyzer:
             duration_seconds=metadata.frame_count / fps if fps > 0 else 0.0,
             classes=tuple(self.behaviour.classes),
             people=people,
+            tracks=tuple(tracks),
         )
 
     def _frame_rate(self, metadata: VideoMetadata) -> float:
@@ -432,6 +440,55 @@ def _thin(windows: list[list[int]], limit: int) -> list[list[int]]:
     return chosen
 
 
+def build_video_analyzer(
+    checkpoint: str | Path,
+    *,
+    dataset_config: DatasetConfig | str | Path | None = None,
+    inference_config: InferenceConfig | str | Path | None = None,
+    model_config: ModelConfig | str | Path | None = None,
+    device: str = "auto",
+    batch_size: int = 4,
+) -> VideoAnalyzer:
+    """Assemble a ``VideoAnalyzer`` from configs and a training checkpoint."""
+    dataset = (
+        dataset_config
+        if isinstance(dataset_config, DatasetConfig)
+        else DatasetConfig.from_yaml(dataset_config or Path("configs/dataset.yaml"))
+    )
+    inference = (
+        inference_config
+        if isinstance(inference_config, InferenceConfig)
+        else InferenceConfig.from_yaml(inference_config or Path("configs/inference.yaml"))
+    )
+    resolved = resolve_device(device)
+
+    explicit_model: ModelConfig | None
+    if isinstance(model_config, ModelConfig):
+        explicit_model = model_config
+    elif model_config is None:
+        explicit_model = None
+    else:
+        explicit_model = ModelConfig.from_yaml(model_config)
+
+    recognizer, classes, loaded_model = ClipRecognizer.from_checkpoint(
+        checkpoint, device=resolved, model_config=explicit_model
+    )
+    if classes != dataset.classes:
+        raise ValueError(
+            f"checkpoint was trained on classes {list(classes)}, but the dataset config "
+            f"declares {list(dataset.classes)}"
+        )
+
+    return VideoAnalyzer(
+        YoloDetector(inference.detection, device=resolved),
+        recognizer,
+        BehaviorClassifier.from_config(dataset, loaded_model),
+        dataset.sampling,
+        inference,
+        batch_size=batch_size,
+    )
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--video", type=Path, required=True)
@@ -475,28 +532,18 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     args = parse_args(argv)
 
-    dataset_config = DatasetConfig.from_yaml(args.dataset_config)
-    inference_config = InferenceConfig.from_yaml(args.inference_config)
-    device = resolve_device(args.device)
-
-    model_config = ModelConfig.from_yaml(args.model_config) if args.model_config else None
-    recognizer, classes, model_config = ClipRecognizer.from_checkpoint(
-        args.checkpoint, device=device, model_config=model_config
-    )
-    if classes != dataset_config.classes:
-        raise SystemExit(
-            f"checkpoint was trained on classes {list(classes)}, but the dataset config "
-            f"declares {list(dataset_config.classes)}"
+    try:
+        analyzer = build_video_analyzer(
+            args.checkpoint,
+            dataset_config=args.dataset_config,
+            inference_config=args.inference_config,
+            model_config=args.model_config,
+            device=args.device,
+            batch_size=args.batch_size,
         )
+    except (FileNotFoundError, ValueError) as error:
+        raise SystemExit(str(error)) from error
 
-    analyzer = VideoAnalyzer(
-        YoloDetector(inference_config.detection, device=device),
-        recognizer,
-        BehaviorClassifier.from_config(dataset_config, model_config),
-        dataset_config.sampling,
-        inference_config,
-        batch_size=args.batch_size,
-    )
     analysis = analyzer.analyze(args.video, frame_stride=args.frame_stride)
 
     output = args.output or Path("outputs/predictions") / f"{args.video.stem}.json"
