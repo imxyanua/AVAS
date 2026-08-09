@@ -5,10 +5,10 @@ pyyaml>=6.0.3
 tqdm>=4.70.0
 
 # Computer vision.
-# The headless OpenCV build is used because the project renders through
-# Streamlit and never opens an OpenCV window. It also keeps servers and CI
-# runners free of GUI system libraries.
-opencv-python-headless>=4.10,<5
+# Ultralytics depends on opencv-python, so also declaring the headless build
+# installs two packages that both provide the cv2 module and lets install order
+# decide which one wins. One variant is declared instead.
+opencv-python>=4.10,<6
 ultralytics>=8.4.116
 
 # Deep learning

@@ -27,6 +27,12 @@ htmlcov/
 .env.*
 !.env.example
 
+# Model weights, including files that Ultralytics downloads into the working
+# directory on first use.
+*.pt
+*.pth
+*.onnx
+
 # Datasets, weights and generated artifacts.
 # Directories are re-included so that the .gitkeep placeholders stay tracked.
 data/**
