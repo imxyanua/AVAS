@@ -1,0 +1,24 @@
+# Person detection and tracking used when analysing a video.
+detection:
+  # Ultralytics resolves this name against its own weights cache and downloads
+  # the file on first use.
+  weights: yolov8n.pt
+  # Only people are needed; 0 is the person class in the COCO taxonomy that the
+  # shipped YOLO weights are trained on.
+  person_class_id: 0
+  confidence_threshold: 0.35
+  iou_threshold: 0.5
+  image_size: 640
+  max_detections: 20
+
+tracking:
+  # Minimum overlap for a detection to continue an existing track.
+  iou_threshold: 0.3
+  # Frames a track survives without a matching detection, which is what carries
+  # a person through a brief occlusion.
+  max_age: 15
+  # Detections required before a track is trusted, which suppresses flicker from
+  # single-frame false positives.
+  min_hits: 3
+  # Tracks shorter than this cannot fill a clip and are discarded.
+  min_track_length: 8

@@ -287,6 +287,83 @@ class ModelConfig:
 
 
 @dataclass(frozen=True)
+class DetectionConfig:
+    """Person detector settings."""
+
+    weights: str = "yolov8n.pt"
+    person_class_id: int = 0
+    confidence_threshold: float = 0.35
+    iou_threshold: float = 0.5
+    image_size: int = 640
+    max_detections: int = 20
+
+    def __post_init__(self) -> None:
+        if not self.weights:
+            raise ConfigError("detection.weights must not be empty")
+        if self.person_class_id < 0:
+            raise ConfigError(f"detection.person_class_id must be >= 0, got {self.person_class_id}")
+        if not 0.0 < self.confidence_threshold < 1.0:
+            raise ConfigError(
+                f"detection.confidence_threshold must be in (0.0, 1.0), "
+                f"got {self.confidence_threshold}"
+            )
+        if not 0.0 < self.iou_threshold < 1.0:
+            raise ConfigError(
+                f"detection.iou_threshold must be in (0.0, 1.0), got {self.iou_threshold}"
+            )
+        if self.image_size < 32:
+            raise ConfigError(f"detection.image_size must be >= 32, got {self.image_size}")
+        if self.max_detections < 1:
+            raise ConfigError(f"detection.max_detections must be >= 1, got {self.max_detections}")
+
+
+@dataclass(frozen=True)
+class TrackingConfig:
+    """Association and lifecycle settings for person tracking."""
+
+    iou_threshold: float = 0.3
+    max_age: int = 15
+    min_hits: int = 3
+    min_track_length: int = 8
+
+    def __post_init__(self) -> None:
+        if not 0.0 < self.iou_threshold < 1.0:
+            raise ConfigError(
+                f"tracking.iou_threshold must be in (0.0, 1.0), got {self.iou_threshold}"
+            )
+        if self.max_age < 1:
+            raise ConfigError(f"tracking.max_age must be >= 1, got {self.max_age}")
+        if self.min_hits < 1:
+            raise ConfigError(f"tracking.min_hits must be >= 1, got {self.min_hits}")
+        if self.min_track_length < 1:
+            raise ConfigError(
+                f"tracking.min_track_length must be >= 1, got {self.min_track_length}"
+            )
+
+
+@dataclass(frozen=True)
+class InferenceConfig:
+    """Detection and tracking settings for analysing a video."""
+
+    detection: DetectionConfig = field(default_factory=DetectionConfig)
+    tracking: TrackingConfig = field(default_factory=TrackingConfig)
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> InferenceConfig:
+        unexpected = set(payload) - {"detection", "tracking"}
+        if unexpected:
+            raise ConfigError(f"inference config has unexpected keys: {sorted(unexpected)}")
+        return cls(
+            detection=DetectionConfig(**_as_mapping(payload.get("detection", {}), "detection")),
+            tracking=TrackingConfig(**_as_mapping(payload.get("tracking", {}), "tracking")),
+        )
+
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> InferenceConfig:
+        return cls.from_mapping(load_yaml(path))
+
+
+@dataclass(frozen=True)
 class EarlyStoppingConfig:
     """Stops training once the monitored validation metric stops improving."""
 

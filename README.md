@@ -222,6 +222,8 @@ data/                    Datasets and generated manifests (ignored by git)
 models/                  Weights and training checkpoints (ignored by git)
 outputs/                 Predictions, reports and figures (ignored by git)
 src/preprocessing/       Video reading, frame sampling, transforms, datasets, splitting
+src/detection/           YOLO person detection
+src/tracking/            Person tracking across frames
 src/features/            CNN backbone feature extraction and caching
 src/models/              Temporal model and behaviour classification
 src/training/            Training loop and evaluation reports
@@ -300,6 +302,23 @@ python -m src.training.evaluate --checkpoint models/checkpoints/baseline.pt --sp
 ```
 
 The report contains per-class precision, recall, and F1, the confusion matrix, and a separate set of metrics for the normal against abnormal decision, including abnormal recall and the false alarm rate. Those are reported apart from the action metrics because confusing two abnormal behaviours with each other costs far less than missing an abnormal event. A `predictions.csv` records one row per clip so individual errors can be traced back to a recording.
+
+## Person Detection and Tracking
+
+`configs/inference.yaml` holds the detection and tracking settings used when analysing a video. YOLO answers where people are in a frame; tracking turns those per-frame boxes into the motion history of one person, which is what the action model needs.
+
+Detection sits behind a small `Detector` protocol, so the tracking and recognition stages can be exercised without model weights and a different detector can be substituted later. YOLO weights are loaded lazily on first use and downloaded into the working directory by Ultralytics.
+
+Association is overlap based, matching the strongest pair first. Three settings shape the result:
+
+| Setting | Effect |
+| --- | --- |
+| `iou_threshold` | Minimum overlap for a detection to continue a track |
+| `max_age` | Frames a track survives unmatched, which carries a person through a brief occlusion |
+| `min_hits` | Detections required before a track is trusted, which suppresses single-frame false positives |
+| `min_track_length` | Tracks shorter than this cannot fill a clip and are discarded |
+
+Raising `max_age` keeps identities through longer occlusions but increases the risk of attaching a new person to an old identity. Raising `min_hits` removes flicker at the cost of losing the first frames of every genuine track.
 
 ### Calibrating the Anomaly Thresholds
 
