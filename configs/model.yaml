@@ -1,0 +1,19 @@
+# Action recognition model.
+#
+# The baseline keeps the CNN backbone frozen and trains only the temporal head.
+# Cached backbone features then make training feasible without a discrete GPU.
+architecture: cnn_lstm
+
+backbone:
+  name: resnet18
+  pretrained: true
+  freeze: true
+
+temporal:
+  hidden_size: 256
+  num_layers: 1
+  bidirectional: false
+  dropout: 0.3
+
+classifier:
+  dropout: 0.5
