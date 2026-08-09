@@ -4,8 +4,11 @@ pandas>=3.0.5
 pyyaml>=6.0.3
 tqdm>=4.70.0
 
-# Computer vision
-opencv-python>=4.10,<5
+# Computer vision.
+# The headless OpenCV build is used because the project renders through
+# Streamlit and never opens an OpenCV window. It also keeps servers and CI
+# runners free of GUI system libraries.
+opencv-python-headless>=4.10,<5
 ultralytics>=8.4.116
 
 # Deep learning
