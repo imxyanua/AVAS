@@ -42,6 +42,20 @@ def build_clip_transform(image_size: int, *, train: bool) -> v2.Compose:
     )
 
 
+def build_normalize_transform() -> v2.Compose:
+    """Normalisation only, for frames that already have the model input size.
+
+    Person crops are letterboxed to the input size when they are cut out, so
+    resizing or cropping them again would undo that work.
+    """
+    return v2.Compose(
+        [
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+        ]
+    )
+
+
 def frames_to_tensor(frames: np.ndarray) -> torch.Tensor:
     """Convert an ``(T, H, W, 3)`` uint8 RGB array to a ``(T, 3, H, W)`` tensor."""
     if frames.ndim != 4 or frames.shape[-1] != 3:
