@@ -4,7 +4,7 @@ AVAS is an AI-assisted video analysis system for human action recognition and an
 
 The project combines computer vision, temporal deep learning, and generative AI. Deep learning produces the predictions, while generative AI is limited to explaining those predictions and preparing readable reports.
 
-> **Project status:** AVAS is under active development. The data preparation layer is implemented and tested; detection, tracking, the action recognition model, report generation, and the Streamlit application are not available yet. See [Local Development](#local-development) for what can be run today.
+> **Project status:** AVAS is under active development. Data preparation and backbone feature extraction are implemented and tested; the action recognition model, detection, tracking, report generation, and the Streamlit application are not available yet. See [Local Development](#local-development) for what can be run today.
 
 ## Key Capabilities
 
@@ -219,8 +219,9 @@ configs/                 Experiment configuration in YAML
 data/                    Datasets and generated manifests (ignored by git)
 models/                  Weights and training checkpoints (ignored by git)
 outputs/                 Predictions, reports and figures (ignored by git)
-src/preprocessing/       Video reading, frame sampling, dataset splitting
-src/utils/               Configuration loading and seed control
+src/preprocessing/       Video reading, frame sampling, transforms, datasets, splitting
+src/features/            CNN backbone feature extraction and caching
+src/utils/               Configuration loading, seeding, device selection
 tests/                   Unit tests
 ```
 
@@ -263,6 +264,16 @@ python -m src.preprocessing.build_splits --config configs/dataset.yaml --summary
 ```
 
 The command writes a CSV manifest with one row per video, recording its split, class, and source-recording group. The `group_pattern` setting controls how that group is recovered from the file name, and every clip sharing a group is placed in the same split. The split is deterministic for a given seed, and the command fails if any recording would appear in more than one split.
+
+## Caching Backbone Features
+
+The baseline keeps the CNN backbone frozen, so the features it produces for a clip never change during training. Computing them once and storing them on disk removes video decoding and the convolutional forward pass from every epoch, which is what makes training practical without a discrete GPU.
+
+```bash
+python -m src.features.build_feature_cache --clips-per-video 1
+```
+
+Each cached file holds a `(clip_length, feature_dim)` array for one clip, and an `index.csv` records the split, class, source recording, sampled frame indices, and file path of every entry. Existing files are reused unless `--overwrite` is passed. Caching more than one clip per video requires `sampling.strategy: random`, otherwise every clip would be identical. The command refuses to run when `backbone.freeze` is disabled, because fine-tuning would immediately invalidate the cache.
 
 ## Intended Interface
 
