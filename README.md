@@ -6,7 +6,7 @@ AVAS is an AI-assisted video analysis system for human action recognition and an
 
 The project combines computer vision, temporal deep learning, and generative AI. Deep learning produces the predictions, while generative AI is limited to explaining those predictions and preparing readable reports.
 
-> **Project status:** AVAS is under active development. The analysis pipeline works end to end: data preparation, feature extraction, baseline action recognition with training and evaluation, person detection and tracking, and per-person video analysis with timestamps. Generated incident reports and the Streamlit application are not available yet. See [Local Development](#local-development) for what can be run today.
+> **Project status:** AVAS is under active development. The analysis pipeline works end to end: data preparation, feature extraction, baseline action recognition with training and evaluation, person detection and tracking, per-person video analysis with timestamps, and operator-facing incident reports. The Streamlit application is not available yet. See [Local Development](#local-development) for what can be run today.
 
 ## Key Capabilities
 
@@ -228,6 +228,7 @@ src/features/            CNN backbone feature extraction and caching
 src/models/              Temporal model and behaviour classification
 src/training/            Training loop and evaluation reports
 src/inference/           Person crops and whole-video analysis
+src/genai/               Operator-facing incident reports from model findings
 src/utils/               Configuration, seeding, device selection, metrics
 tests/                   Unit tests
 ```
@@ -332,6 +333,17 @@ The report lists one entry per tracked person: the action, its confidence, the n
 The video is decoded twice by design. The first pass runs detection and tracking and keeps only boxes; the second decodes the frames the selected clips need and immediately reduces each one to a small person crop. Holding whole decoded frames instead would cost megabytes per frame, which does not scale to a long video, while crops stay bounded by `max_clips_per_track`.
 
 `--frame-stride` analyses every Nth frame. That speeds up a long video and costs temporal resolution, but timestamps stay correct because tracks record the original frame indices.
+
+## Incident Reports
+
+Generative AI turns the frozen model findings into a short operator-facing report. It must not replace, revise, or invent action labels, confidences, or anomaly scores. Every report therefore keeps a `model_findings` section copied from the analysis unchanged, and GenAI only fills the narrative fields.
+
+```bash
+python -m src.genai.analyzer --input outputs/predictions/sample.json
+python -m src.inference.predict --video sample.mp4 --checkpoint models/checkpoints/baseline.pt --explain
+```
+
+Set `GOOGLE_API_KEY` in a local `.env` file, using `.env.example` as a template. When the key is missing, or when `--template-only` is passed, the same findings are rendered by a deterministic template so reports remain available offline and in CI.
 
 ### Train on Person Crops
 
