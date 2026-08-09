@@ -4,7 +4,7 @@ AVAS is an AI-assisted video analysis system for human action recognition and an
 
 The project combines computer vision, temporal deep learning, and generative AI. Deep learning produces the predictions, while generative AI is limited to explaining those predictions and preparing readable reports.
 
-> **Project status:** AVAS is under active development. A runnable application, trained checkpoints, and reproducible setup instructions are not yet available in this repository.
+> **Project status:** AVAS is under active development. The data preparation layer is implemented and tested; detection, tracking, the action recognition model, report generation, and the Streamlit application are not available yet. See [Local Development](#local-development) for what can be run today.
 
 ## Key Capabilities
 
@@ -210,7 +210,59 @@ All published results should identify the dataset split, hardware, model checkpo
 - **Generative AI:** Google GenAI
 - **Application interface:** Streamlit
 
-Exact dependency versions will be documented with the executable implementation.
+Runtime dependencies are listed in `requirements.txt`; development tooling is listed in `requirements-dev.txt`.
+
+## Repository Layout
+
+```text
+configs/                 Experiment configuration in YAML
+data/                    Datasets and generated manifests (ignored by git)
+models/                  Weights and training checkpoints (ignored by git)
+outputs/                 Predictions, reports and figures (ignored by git)
+src/preprocessing/       Video reading, frame sampling, dataset splitting
+src/utils/               Configuration loading and seed control
+tests/                   Unit tests
+```
+
+## Local Development
+
+AVAS targets Python 3.12 or newer.
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+source .venv/bin/activate       # Linux and macOS
+pip install -r requirements-dev.txt
+```
+
+Run the test suite and the linter:
+
+```bash
+pytest
+ruff check .
+ruff format --check .
+```
+
+## Preparing a Dataset Split
+
+Arrange source videos so that each class is a directory:
+
+```text
+data/raw/avas_baseline/
+├── walking/
+│   ├── v_walking_g01_c01.avi
+│   └── v_walking_g01_c02.avi
+└── falling/
+    └── v_falling_g04_c01.avi
+```
+
+Describe the dataset in `configs/dataset.yaml`, then build the split manifest:
+
+```bash
+python -m src.preprocessing.build_splits --config configs/dataset.yaml --summary outputs/reports/split_summary.json
+```
+
+The command writes a CSV manifest with one row per video, recording its split, class, and source-recording group. The `group_pattern` setting controls how that group is recovered from the file name, and every clip sharing a group is placed in the same split. The split is deterministic for a given seed, and the command fails if any recording would appear in more than one split.
 
 ## Intended Interface
 
@@ -249,6 +301,4 @@ Deployments must also follow applicable privacy, surveillance, data retention, a
 - Anomaly scores are model-specific and require calibration.
 - Generated explanations can improve readability but cannot validate model correctness.
 
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for the full text.
+## License [MIT](LICENSE)
