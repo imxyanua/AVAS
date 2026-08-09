@@ -22,3 +22,11 @@ tracking:
   min_hits: 3
   # Tracks shorter than this cannot fill a clip and are discarded.
   min_track_length: 8
+
+clips:
+  # Detectors crop tightly, and the limbs that separate falling from standing
+  # often fall just outside the box, so the crop is widened before use.
+  box_padding: 0.1
+  # Upper bound on clips analysed per person, which keeps memory and runtime
+  # bounded on long videos.
+  max_clips_per_track: 4

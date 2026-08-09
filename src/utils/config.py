@@ -342,20 +342,38 @@ class TrackingConfig:
 
 
 @dataclass(frozen=True)
+class ClipSelectionConfig:
+    """How clips are cut out of a person track for recognition."""
+
+    box_padding: float = 0.1
+    max_clips_per_track: int = 4
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.box_padding < 1.0:
+            raise ConfigError(f"clips.box_padding must be in [0.0, 1.0), got {self.box_padding}")
+        if self.max_clips_per_track < 1:
+            raise ConfigError(
+                f"clips.max_clips_per_track must be >= 1, got {self.max_clips_per_track}"
+            )
+
+
+@dataclass(frozen=True)
 class InferenceConfig:
-    """Detection and tracking settings for analysing a video."""
+    """Detection, tracking and clip selection settings for analysing a video."""
 
     detection: DetectionConfig = field(default_factory=DetectionConfig)
     tracking: TrackingConfig = field(default_factory=TrackingConfig)
+    clips: ClipSelectionConfig = field(default_factory=ClipSelectionConfig)
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> InferenceConfig:
-        unexpected = set(payload) - {"detection", "tracking"}
+        unexpected = set(payload) - {"detection", "tracking", "clips"}
         if unexpected:
             raise ConfigError(f"inference config has unexpected keys: {sorted(unexpected)}")
         return cls(
             detection=DetectionConfig(**_as_mapping(payload.get("detection", {}), "detection")),
             tracking=TrackingConfig(**_as_mapping(payload.get("tracking", {}), "tracking")),
+            clips=ClipSelectionConfig(**_as_mapping(payload.get("clips", {}), "clips")),
         )
 
     @classmethod

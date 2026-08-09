@@ -6,7 +6,7 @@ AVAS is an AI-assisted video analysis system for human action recognition and an
 
 The project combines computer vision, temporal deep learning, and generative AI. Deep learning produces the predictions, while generative AI is limited to explaining those predictions and preparing readable reports.
 
-> **Project status:** AVAS is under active development. Data preparation, backbone feature extraction, and baseline action recognition with training and evaluation are implemented and tested. Person detection, tracking, generated reports, and the Streamlit application are not available yet. See [Local Development](#local-development) for what can be run today.
+> **Project status:** AVAS is under active development. The analysis pipeline works end to end: data preparation, feature extraction, baseline action recognition with training and evaluation, person detection and tracking, and per-person video analysis with timestamps. Generated incident reports and the Streamlit application are not available yet. See [Local Development](#local-development) for what can be run today.
 
 ## Key Capabilities
 
@@ -227,6 +227,7 @@ src/tracking/            Person tracking across frames
 src/features/            CNN backbone feature extraction and caching
 src/models/              Temporal model and behaviour classification
 src/training/            Training loop and evaluation reports
+src/inference/           Person crops and whole-video analysis
 src/utils/               Configuration, seeding, device selection, metrics
 tests/                   Unit tests
 ```
@@ -319,6 +320,26 @@ Association is overlap based, matching the strongest pair first. Three settings 
 | `min_track_length` | Tracks shorter than this cannot fill a clip and are discarded |
 
 Raising `max_age` keeps identities through longer occlusions but increases the risk of attaching a new person to an old identity. Raising `min_hits` removes flicker at the cost of losing the first frames of every genuine track.
+
+## Analysing a Video
+
+```bash
+python -m src.inference.predict --video sample.mp4 --checkpoint models/checkpoints/baseline.pt
+```
+
+The report lists one entry per tracked person: the action, its confidence, the normal or abnormal status, the anomaly score, the risk level, the frames and timestamps the person was tracked for, and the window that carried the strongest anomaly evidence. Each analysed clip is reported separately with its own probabilities, so a conclusion can be traced to the seconds it came from.
+
+The video is decoded twice by design. The first pass runs detection and tracking and keeps only boxes; the second decodes the frames the selected clips need and immediately reduces each one to a small person crop. Holding whole decoded frames instead would cost megabytes per frame, which does not scale to a long video, while crops stay bounded by `max_clips_per_track`.
+
+`--frame-stride` analyses every Nth frame. That speeds up a long video and costs temporal resolution, but timestamps stay correct because tracks record the original frame indices.
+
+### Train on Person Crops
+
+Recognition runs on a square crop of the tracked person, letterboxed rather than stretched so the body keeps its proportions. A model trained on whole video frames will therefore see a different kind of input at analysis time. Build the training feature cache from person crops as well when accuracy on real footage matters, otherwise treat the reported actions as a pipeline demonstration rather than a measurement.
+
+### Status and Risk Level Can Disagree
+
+`status` comes from the predicted class and `risk_level` comes from the anomaly score, so a record can read `abnormal` with a risk level of `normal` when the model picks an abnormal class without concentrating enough probability on abnormal classes. That is a signal to calibrate the thresholds, not a contradiction to ignore.
 
 ### Calibrating the Anomaly Thresholds
 
