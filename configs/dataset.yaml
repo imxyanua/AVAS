@@ -1,0 +1,47 @@
+# Dataset layout and sampling settings.
+#
+# Videos must be organised as <root>/<class_name>/<video_file>, where every
+# class_name below matches a directory name exactly.
+name: avas_baseline
+
+root: data/raw/avas_baseline
+processed_root: data/processed/avas_baseline
+
+video_extensions: [".avi", ".mp4", ".mkv", ".mov"]
+
+# Regex applied to the file stem to recover the source-recording identifier.
+# Clips that share an identifier are always placed in the same split, which is
+# what prevents near-duplicate frames from leaking between train and test.
+# UCF101 encodes the group in filenames such as v_Punch_g08_c01.avi.
+group_pattern: "_(g\\d+)_"
+
+classes:
+  - walking
+  - running
+  - standing
+  - sitting
+  - falling
+  - fighting
+
+# Every class must appear exactly once across the two behaviour groups.
+behavior_map:
+  normal:
+    - walking
+    - running
+    - standing
+    - sitting
+  abnormal:
+    - falling
+    - fighting
+
+split:
+  train: 0.7
+  validation: 0.15
+  test: 0.15
+  seed: 42
+
+sampling:
+  clip_length: 16
+  frame_stride: 2
+  strategy: uniform
+  image_size: 224

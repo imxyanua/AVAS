@@ -1,0 +1,21 @@
+# Core numerical and data stack
+numpy>=2.5.2
+pandas>=3.0.5
+pyyaml>=6.0.3
+tqdm>=4.70.0
+
+# Computer vision
+opencv-python>=4.10,<5
+ultralytics>=8.4.116
+
+# Deep learning
+torch>=2.13.0
+torchvision>=0.28.0
+
+# Evaluation and reporting
+scikit-learn>=1.9.0
+matplotlib>=3.11.1
+
+# Application and generative AI
+streamlit>=1.61.1
+google-genai>=2.17.0
