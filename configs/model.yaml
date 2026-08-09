@@ -17,3 +17,10 @@ temporal:
 
 classifier:
   dropout: 0.5
+
+# Provisional thresholds on the total probability assigned to abnormal classes.
+# They control how much material an operator has to review, so they must be
+# calibrated on validation data before any deployment.
+anomaly:
+  suspicious_threshold: 0.5
+  high_risk_threshold: 0.8
