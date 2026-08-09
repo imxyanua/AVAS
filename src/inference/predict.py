@@ -458,6 +458,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
+    parser.add_argument(
+        "--explain",
+        action="store_true",
+        help="also write an operator-facing incident report from the model findings",
+    )
+    parser.add_argument(
+        "--template-only",
+        action="store_true",
+        help="with --explain, skip GenAI and use the deterministic template report",
+    )
     return parser.parse_args(argv)
 
 
@@ -491,7 +501,8 @@ def main(argv: list[str] | None = None) -> int:
 
     output = args.output or Path("outputs/predictions") / f"{args.video.stem}.json"
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(analysis.to_dict(), indent=2), encoding="utf-8")
+    payload = analysis.to_dict()
+    output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     logger.info(
         "%s: %d people, %d abnormal, peak anomaly score %.3f",
@@ -513,6 +524,18 @@ def main(argv: list[str] | None = None) -> int:
             peak.end_time,
         )
     logger.info("report written to %s", output)
+
+    if args.explain:
+        from src.genai.analyzer import explain
+
+        incident = explain(payload, prefer_template=args.template_only)
+        incident_path = Path("outputs/reports") / f"{args.video.stem}_incident.json"
+        incident_path.parent.mkdir(parents=True, exist_ok=True)
+        incident_path.write_text(
+            json.dumps(incident.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        logger.info("incident report written to %s (source=%s)", incident_path, incident.source)
+
     return 0
 
 
