@@ -6,7 +6,7 @@ AVAS is an AI-assisted video analysis system for human action recognition and an
 
 The project combines computer vision, temporal deep learning, and generative AI. Deep learning produces the predictions, while generative AI is limited to explaining those predictions and preparing readable reports.
 
-> **Project status:** AVAS is under active development. The analysis pipeline works end to end: data preparation, feature extraction, baseline action recognition with training and evaluation, person detection and tracking, per-person video analysis with timestamps, and operator-facing incident reports. The Streamlit application is not available yet. See [Local Development](#local-development) for what can be run today.
+> **Project status:** AVAS is under active development. The analysis pipeline works end to end: data preparation, feature extraction, baseline action recognition with training and evaluation, person detection and tracking, per-person video analysis with timestamps, operator-facing incident reports, and a Streamlit interface for upload and review. See [Local Development](#local-development) for what can be run today.
 
 ## Key Capabilities
 
@@ -217,6 +217,7 @@ Runtime dependencies are listed in `requirements.txt`; development tooling is li
 ## Repository Layout
 
 ```text
+app/                     Streamlit operator interface
 configs/                 Experiment configuration in YAML
 data/                    Datasets and generated manifests (ignored by git)
 models/                  Weights and training checkpoints (ignored by git)
@@ -227,7 +228,7 @@ src/tracking/            Person tracking across frames
 src/features/            CNN backbone feature extraction and caching
 src/models/              Temporal model and behaviour classification
 src/training/            Training loop and evaluation reports
-src/inference/           Person crops and whole-video analysis
+src/inference/           Person crops, whole-video analysis, and annotated previews
 src/genai/               Operator-facing incident reports from model findings
 src/utils/               Configuration, seeding, device selection, metrics
 tests/                   Unit tests
@@ -359,20 +360,15 @@ The anomaly score is the total probability assigned to abnormal classes, and the
 
 Selecting a checkpoint by macro F1 makes this concrete. The epoch that first reaches peak F1 can still be poorly calibrated, so a clip can be classified correctly as abnormal while its anomaly score stays below the suspicious threshold. Compare `predictions.csv` against the reported thresholds before trusting the risk levels, and consider monitoring validation loss instead when the risk levels matter more than the ranking.
 
-## Intended Interface
+## Streamlit Interface
 
-The Streamlit application is designed to provide:
+```bash
+streamlit run app/streamlit_app.py
+```
 
-- Video upload and playback
-- Bounding-box overlays
-- Tracking IDs
-- Detected action labels
-- Confidence and anomaly scores
-- Event timestamps
-- Normal or abnormal status
-- Generated incident analysis
+The app uploads a video, runs the same analysis path as `src.inference.predict`, shows an annotated preview with track boxes and labels, lists per-person events, and renders an incident report. Point the sidebar at a trained checkpoint under `models/checkpoints/`. Supported uploads are MP4, AVI, MOV, and MKV, subject to the codecs available in the runtime environment.
 
-Supported upload formats are expected to include MP4, AVI, MOV, and MKV, subject to the codecs available in the runtime environment.
+By default the incident report uses the offline template unless `GOOGLE_API_KEY` is present in the environment or a local `.env` file. Uncheck **Template-only incident report** to call Google GenAI when a key is available.
 
 ## Responsible Use
 
