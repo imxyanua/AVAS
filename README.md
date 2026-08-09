@@ -1,5 +1,7 @@
 # AVAS
 
+[![CI](https://github.com/imxyanua/AVAS/actions/workflows/ci.yml/badge.svg)](https://github.com/imxyanua/AVAS/actions/workflows/ci.yml)
+
 AVAS is an AI-assisted video analysis system for human action recognition and anomaly detection. It analyzes motion across sequences of frames, identifies potentially abnormal behavior, and presents model evidence in a form that a human operator can review.
 
 The project combines computer vision, temporal deep learning, and generative AI. Deep learning produces the predictions, while generative AI is limited to explaining those predictions and preparing readable reports.
@@ -243,6 +245,10 @@ pytest
 ruff check .
 ruff format --check .
 ```
+
+### Continuous Integration
+
+`.github/workflows/ci.yml` runs the same checks on every pull request and on every push to `main`: formatting, lint rules, a dependency conflict check, and the test suite on both Linux and Windows. PyTorch is installed from the CPU wheel index because the runners have no GPU.
 
 ## Preparing a Dataset Split
 
