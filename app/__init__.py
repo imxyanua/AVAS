@@ -1,0 +1,1 @@
+"""AVAS desktop application package."""
