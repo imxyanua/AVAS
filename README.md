@@ -6,7 +6,7 @@ AVAS is an AI-assisted video analysis system for human action recognition and an
 
 The project combines computer vision, temporal deep learning, and generative AI. Deep learning produces the predictions, while generative AI is limited to explaining those predictions and preparing readable reports.
 
-> **Project status:** AVAS is under active development. The analysis pipeline works end to end: data preparation, feature extraction, baseline action recognition with training and evaluation, person detection and tracking, per-person video analysis with timestamps, operator-facing incident reports, and a Streamlit interface for upload and review. See [Local Development](#local-development) for what can be run today.
+> **Project status:** AVAS is under active development. The analysis pipeline works end to end: data preparation, feature extraction, baseline action recognition with training and evaluation, person detection and tracking, per-person video analysis with timestamps, operator-facing incident reports, and a PySide6 desktop interface for upload and review. See [Local Development](#local-development) for what can be run today.
 
 ## Key Capabilities
 
@@ -18,7 +18,7 @@ The project combines computer vision, temporal deep learning, and generative AI.
 - Report confidence scores, timestamps, and anomaly scores.
 - Classify observed behavior as normal, suspicious, or abnormal.
 - Generate operator-facing explanations without changing model predictions.
-- Present video, detections, tracks, events, and reports through Streamlit.
+- Present video, detections, tracks, events, and reports through a desktop interface.
 
 ## Why Temporal Analysis Matters
 
@@ -52,7 +52,7 @@ flowchart TD
     H --> I[Normal or abnormal classification]
     I --> J[Anomaly scoring]
     J --> K[Google GenAI explanation]
-    K --> L[Streamlit results and report]
+    K --> L[Desktop results and report]
 ```
 
 ### 1. Video Preprocessing
@@ -210,14 +210,14 @@ All published results should identify the dataset split, hardware, model checkpo
 - **Data processing:** NumPy and Pandas
 - **Visualization:** Matplotlib
 - **Generative AI:** Google GenAI
-- **Application interface:** Streamlit
+- **Application interface:** PySide6
 
 Runtime dependencies are listed in `requirements.txt`; development tooling is listed in `requirements-dev.txt`.
 
 ## Repository Layout
 
 ```text
-app/                     Streamlit operator interface
+app/                     PySide6 desktop operator interface
 configs/                 Experiment configuration in YAML
 data/                    Datasets and generated manifests (ignored by git)
 models/                  Weights and training checkpoints (ignored by git)
@@ -360,13 +360,13 @@ The anomaly score is the total probability assigned to abnormal classes, and the
 
 Selecting a checkpoint by macro F1 makes this concrete. The epoch that first reaches peak F1 can still be poorly calibrated, so a clip can be classified correctly as abnormal while its anomaly score stays below the suspicious threshold. Compare `predictions.csv` against the reported thresholds before trusting the risk levels, and consider monitoring validation loss instead when the risk levels matter more than the ranking.
 
-## Streamlit Interface
+## Desktop Interface
 
 ```bash
-streamlit run app/streamlit_app.py
+python -m app.desktop_app
 ```
 
-The app uploads a video, runs the same analysis path as `src.inference.predict`, shows an annotated preview with track boxes and labels, lists per-person events, and renders an incident report. Point the sidebar at a trained checkpoint under `models/checkpoints/`. Supported uploads are MP4, AVI, MOV, and MKV, subject to the codecs available in the runtime environment.
+The PySide6 window uploads a video, runs the same analysis path as `src.inference.predict` on a background thread, shows original and annotated previews, lists per-person events, and renders an incident report. Point Settings at a trained checkpoint under `models/checkpoints/`. Supported videos are MP4, AVI, MOV, and MKV, subject to the codecs available in Qt Multimedia and OpenCV.
 
 By default the incident report uses the offline template unless `GOOGLE_API_KEY` is present in the environment or a local `.env` file. Uncheck **Template-only incident report** to call Google GenAI when a key is available.
 
